@@ -2,9 +2,59 @@ import numpy as np
 import matplotlib.pyplot as plt
     
 class axis_layer():
+    """
+    A class to assist in laying out axes for publication. 
+
+    ...
+
+    Attributes
+    ----------
+    widths : int/float or 1xn list of int/float 
+        The widths of each column of axes in cm. If a single numeric value is entered, only a single column will be created. 
+        If an 1xn list of int/float is entered, n columns will be created. 
     
+    heights : int/float or 1xm list of int/float 
+        The heights of each row of axes in cm. If a single numeric value is entered, only a single row will be created. 
+        If an 1xm list of int/float is entered, m rows will be created. 
+
+    hspace: int/float or 1x(n-1) list of int/float | default = 1.
+        Horizontal spacing in cm  between columns of axes. Specify a list 1x(n-1) for each column space, or a single int/float for equal spacing. 
+
+    vspace: int/float or 1x(n-1) list of int/float | default = 1.
+        Vertical spacing in cm between rows of axes. Specify a list 1x(m-1) for each row space, or a single int/float for equal spacing. 
+
+    right/left/top/bottom: int/float | default = 1.
+        right/left/top/bottom margin in cm.
+
+    Methods
+    -------
+    lay(posx, posy, **kwargs)
+        Creates an axis at the position posx, posy.
+    
+    """
+
     def __init__(self, **kwargs):
+        """
+        Parameters
+        ----------
+        widths : int/float or 1xn list of int/float 
+            The widths of each column of axes in cm. If a single numeric value is entered, only a single column will be created. 
+            If an 1xn list of int/float is entered, n columns will be created. 
         
+        heights : int/float or 1xm list of int/float 
+            The heights of each row of axes in cm. If a single numeric value is entered, only a single row will be created. 
+            If an 1xm list of int/float is entered, m rows will be created. 
+
+        hspace: int/float or 1x(n-1) list of int/float | default = 1.
+            Horizontal spacing in cm  between columns of axes. Specify a list 1x(n-1) for each column space, or a single int/float for equal spacing. 
+
+        vspace: int/float or 1x(n-1) list of int/float | default = 1.
+            Vertical spacing in cm between rows of axes. Specify a list 1x(m-1) for each row space, or a single int/float for equal spacing. 
+
+        right/left/top/bottom: int/float | default = 1.
+            right/left/top/bottom margin in cm.
+        """
+
         self._left = 1.0
         self._right = 1.0
         self._top = 1.0
@@ -17,12 +67,45 @@ class axis_layer():
         self._heights = [5.0]
         
         self.update_class_with_loop(kwargs)
+
+        self._top_to_bottom = True # Never tested with this set to False
         
-        self._top_to_bottom = True
-                
         fsx, fsy = self.get_figsize_cm()
         print('Figure size is {} x {} cm'.format(fsx, fsy))
+
+    def lay(self, row, col, rowbleed=0, colbleed=0, **kwargs):
+        """
+        Creates an axis at the position posx, posy.
+
         
+        Parameters
+        ----------
+        row: int
+            x position (column) of the axis
+        col: int
+            y position (row) of the axis
+
+            Advanced:
+            Rowbleed: int 
+                This allows the axis to spread over multiple rows. To use this, specify the lowest row as the row input (above). Bleeding over outside the range will raise an exception.
+            Colbleed: int 
+                This allows the axis to spread over multiple columns. To use this, specify the leftmost column as the column input (above). Bleeding over outside the range will raise an exception.
+        
+        """
+        if 'figure' in kwargs.keys():
+            f = kwargs['figure']
+        else: 
+            f = plt.gcf()
+            
+        fsx, fsy = self.get_figsize_inches()
+        f.set_size_inches(fsx, fsy)
+        
+        rect = self.get_pos_norm(col, row, rowbleed=rowbleed, colbleed=colbleed, verbose=False)
+    
+        ax = plt.axes(rect, **kwargs)
+        ax.set_title('row: {} | col: {}'.format(row, col))
+        
+        return ax
         
     def update_class_with_update(self, kwargs):
         
@@ -94,7 +177,7 @@ class axis_layer():
         
         return W, H
         
-    def get_pos(self, posx, posy, verbose=True):
+    def get_pos(self, posx, posy, rowbleed=0, colbleed=0, verbose=True):
         
         W, H = self.get_matrix()
         fsx, fsy = self.get_figsize_cm()
@@ -102,26 +185,46 @@ class axis_layer():
         Ws = np.cumsum(W, axis=1)
         Hs = fsy-np.cumsum(H, axis=0)
 
+        if rowbleed>0:
+            verbose=True
+        
+        if colbleed>0:
+            verbose=True
+            
         if not self.top_to_bottom:
             posy = len(self.heights)-posy-1
             
         pullx = posx*2+1
         pully = posy*2+1
-        
-        w = W[pully, pullx]
-        h = H[pully, pullx]
-        
+
         x = Ws[pully, pullx-1]
         y = Hs[pully, pullx-1]
+
+        pullx_b = np.arange(posx*2+1, (posx+colbleed)*2+2)
+        pully_b = np.arange((posy-rowbleed)*2+1, (posy)*2+2)
         
+        if verbose:
+            print('pullx_b {}'.format(pullx_b))
+            print('pully_b {}'.format(pully_b))
+
+        w = sum(W[pully, pullx_b])
+        h = sum(H[pully_b, pullx])
+                
         rect = [x, y, w, h]
         
         if verbose:
+            
+            print('colbleed {}'.format(colbleed))
+            print('rowbleed {}'.format(rowbleed))
+
             print('posx {}'.format(posx))
             print('posy {}'.format(posy))
         
             print('pullx {}'.format(pullx))
             print('pully {}'.format(pully))
+            
+            print('pullx_b {}'.format(pullx_b))
+            print('pully_b {}'.format(pully_b))
         
             print('W')
             print(W)
@@ -140,11 +243,11 @@ class axis_layer():
             
         return rect
     
-    def get_pos_norm(self, posx, posy, verbose=False):
+    def get_pos_norm(self, posx, posy, rowbleed=0, colbleed=0, verbose=False):
     
         fsx, fsy = self.get_figsize_cm()
         
-        rect = self.get_pos(posx, posy, verbose=verbose)
+        rect = self.get_pos(posx, posy, rowbleed=rowbleed, colbleed=colbleed, verbose=verbose)
         
         rect_norm = [rect[0]/fsx, rect[1]/fsy, rect[2]/fsx, rect[3]/fsy]
         
@@ -154,23 +257,6 @@ class axis_layer():
             print(rect_norm)
             
         return rect_norm
-        
-    def lay(self, posx, posy, **kwargs):
-        
-        if 'figure' in kwargs.keys():
-            f = kwargs['figure']
-        else: 
-            f = plt.gcf()
-            
-        fsx, fsy = self.get_figsize_inches()
-        f.set_size_inches(fsx, fsy)
-        
-        rect = self.get_pos_norm(posx, posy, verbose=False)
-    
-        ax = plt.axes(rect, **kwargs)
-        ax.set_title('xpos: {} | ypos: {}'.format(posx, posy))
-        
-        return ax
         
     @property
     def left(self):
