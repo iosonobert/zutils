@@ -73,7 +73,7 @@ class axis_layer():
         fsx, fsy = self.get_figsize_cm()
         print('Figure size is {} x {} cm'.format(fsx, fsy))
 
-    def lay(self, row, col, rowbleed=0, colbleed=0, **kwargs):
+    def lay(self, row, col, rowbleed=0, colbleed=0, force_new=False, **kwargs):
         """
         Creates an axis at the position posx, posy.
 
@@ -102,8 +102,11 @@ class axis_layer():
         
         rect = self.get_pos_norm(col, row, rowbleed=rowbleed, colbleed=colbleed, verbose=False)
     
-        ax = plt.axes(rect, **kwargs)
-        ax.set_title('row: {} | col: {}'.format(row, col))
+        if force_new:
+            ax = f.add_axes(rect, frameon=False, **kwargs)
+        else:
+            ax = plt.axes(rect, **kwargs)
+        # ax.set_title('row: {} | col: {}'.format(row, col))
         
         return ax
         
