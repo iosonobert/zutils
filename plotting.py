@@ -68,6 +68,8 @@ class axis_layer():
         
         self.update_class_with_loop(kwargs)
 
+        self.verbose = True
+
         self._top_to_bottom = True # Never tested with this set to False
         
         fsx, fsy = self.get_figsize_cm()
@@ -100,7 +102,7 @@ class axis_layer():
         fsx, fsy = self.get_figsize_inches()
         f.set_size_inches(fsx, fsy)
         
-        rect = self.get_pos_norm(col, row, rowbleed=rowbleed, colbleed=colbleed, verbose=False)
+        rect = self.get_pos_norm(col, row, rowbleed=rowbleed, colbleed=colbleed)
     
         if force_new:
             ax = f.add_axes(rect, frameon=False, **kwargs)
@@ -180,19 +182,13 @@ class axis_layer():
         
         return W, H
         
-    def get_pos(self, posx, posy, rowbleed=0, colbleed=0, verbose=True):
+    def get_pos(self, posx, posy, rowbleed=0, colbleed=0):
         
         W, H = self.get_matrix()
         fsx, fsy = self.get_figsize_cm()
         
         Ws = np.cumsum(W, axis=1)
         Hs = fsy-np.cumsum(H, axis=0)
-
-        if rowbleed>0:
-            verbose=True
-        
-        if colbleed>0:
-            verbose=True
             
         if not self.top_to_bottom:
             posy = len(self.heights)-posy-1
@@ -206,7 +202,7 @@ class axis_layer():
         pullx_b = np.arange(posx*2+1, (posx+colbleed)*2+2)
         pully_b = np.arange((posy-rowbleed)*2+1, (posy)*2+2)
         
-        if verbose:
+        if self.verbose:
             print('pullx_b {}'.format(pullx_b))
             print('pully_b {}'.format(pully_b))
 
@@ -215,7 +211,7 @@ class axis_layer():
                 
         rect = [x, y, w, h]
         
-        if verbose:
+        if self.verbose:
             
             print('colbleed {}'.format(colbleed))
             print('rowbleed {}'.format(rowbleed))
@@ -246,15 +242,15 @@ class axis_layer():
             
         return rect
     
-    def get_pos_norm(self, posx, posy, rowbleed=0, colbleed=0, verbose=False):
+    def get_pos_norm(self, posx, posy, rowbleed=0, colbleed=0):
     
         fsx, fsy = self.get_figsize_cm()
         
-        rect = self.get_pos(posx, posy, rowbleed=rowbleed, colbleed=colbleed, verbose=verbose)
+        rect = self.get_pos(posx, posy, rowbleed=rowbleed, colbleed=colbleed)
         
         rect_norm = [rect[0]/fsx, rect[1]/fsy, rect[2]/fsx, rect[3]/fsy]
         
-        if verbose:
+        if self.verbose:
             
             print('rect_norm')
             print(rect_norm)
