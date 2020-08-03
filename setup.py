@@ -8,14 +8,14 @@ class BinaryDistribution(Distribution):
         return False
 
 		
-setup(name='crude_readers',
+setup(name='zutils',
       version='1.0.0',
-      description='Package testing for 02',
+      description='misc utilities',
       author='Andrew Zulberti',
       author_email='andrew.zulberti@gmail.com',
-      #packages=['crude_readers'],
+      #packages=['zutils'],
       packages=find_packages(),
-      install_requires=['numpy','scipy','matplotlib','gsw','netcdf4','xarray'],
+      install_requires=['numpy','scipy','matplotlib','netcdf4','xarray'],
       license='unlicensed to all but author',
       include_package_data=True,
       distclass=BinaryDistribution,

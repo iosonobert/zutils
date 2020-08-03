@@ -1,9 +1,9 @@
 #%%
  
-if True:
-    from ..utils import validation
-else:
-    import validation
+# if True:
+#     from ..utils import validation
+# else:
+#     import validation
 
 import datetime
 import numpy as np
@@ -64,7 +64,7 @@ def is_well_spaced(date, fs, epsilon=0.01):
      - epsilon: maximum deviation from the specified fs
     """
 
-    validation.is_np_date_rowvector(date)
+    # validation.is_np_date_rowvector(date)
 
     if type(date[0]) == datetime.datetime:
         max_dt = np.max(np.diff(date))
