@@ -370,3 +370,13 @@ class axis_layer():
             raise(Exception('must be bool (logical)'))
             
         self._top_to_bottom = v
+
+def hide_xticks(ax):
+
+    for tick in ax.axes.get_xticklabels():
+        tick.set_visible(False)
+
+def hide_yticks(ax):
+
+    for tick in ax.axes.get_yticklabels():
+        tick.set_visible(False)
