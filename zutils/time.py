@@ -149,6 +149,30 @@ def str_to_dt(string, format_lang = 'python', dateformat = 'dd-mmm-yyyy HH:MM:SS
 
     return [datetime.datetime.strptime(string[i], dateformat) for i in np.arange(0, len(string))]
     
+def num2date_lk(mpltime):
+    """
+    Reimplementation of datetime num2date to stop date errors. That occur continually when updating dolfyn or datetime. 
+    
+    This was copied from the Levi Kilcher's Dolfyn package, hence the lk suffix. 
+    """
+    
+    if isinstance(mpltime, np.ndarray):
+        try:
+            n = len(mpltime)
+        except TypeError:
+            pass
+        else:
+            out = np.empty(n, dtype='O')
+            for idx, val in enumerate(mpltime.flat):
+                out[idx] = num2date_lk(val)
+            out.shape = mpltime.shape
+            return out
+        
+    if np.isnan(mpltime):
+        return None
+    return datetime.datetime.fromordinal(int(mpltime)) + datetime.timedelta(days=mpltime % 1)
+
+
 def matplotlibtime_2_matlabdatenum():
 
     pass

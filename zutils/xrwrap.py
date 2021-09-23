@@ -21,6 +21,7 @@ from zutils import qc_conventions
 default_attrs = {
     'title': '', 
     'institution': 'The University of Western Australia', 
+    'institution_division': 'Ocean Dynamics', 
     'source': '', 
     'project': '', 
     'history': '', 
@@ -30,9 +31,17 @@ default_attrs = {
     'trip_recovered': '', 
     'trip_deployed': '', 
     'site': '', 
+    'site_station': '', 
     'instrument_make': '',  
     'instrument_model': '',
-    'disclaimer': ''} 
+    'instrument_serial_number': '',
+    'disclaimer': '',
+    'nominal_latitude': '',
+    'nominal_longitude': '',
+    'nominal_site_depth': '',
+    'nominal_instrument_height_asb': '',
+    'nominal_instrument_orientation': '',
+    'timezone': '',} 
 
 class xrwrap():
     
@@ -51,6 +60,7 @@ class xrwrap():
     
     _attrs = default_attrs
 
+    @property
     def fullpath(self, i=0):
         
         if type(self.file_) == list:
@@ -58,6 +68,26 @@ class xrwrap():
         else:
             return '{folder}/{file_}'.format(folder=self.folder, file_=self.file_)
     
+    def parse_infile(self, infile):
+        """
+        This will set the file_ and folder properties based on an infile which can be either a
+        """
+
+        if type(infile)==str:
+            print('Im a string')
+            folder, file = os.path.split(infile)
+        elif type(infile) in [list, tuple]:
+            if not len(infile) == 2:
+                raise(Exception('The infile must be a string or a length 2 sequence'))
+            else:
+                folder, file = infile
+        else:
+            raise(Exception('The infile must be a string or a length 2 sequence'))
+            
+        self.folder = folder
+        self.file_ = file
+        
+        
     # def get_outname(self, keep_name='False', fileappend=''):
 
     #     if not keep_name:
@@ -128,7 +158,7 @@ class xrwrap():
 
         print('Wrapped an existing xarray dataset. Class attributes taken from the dataset. Dataset attrs cleared.')
 
-    def export(self, final=False):
+    def export(self, final=False, csv=True):
         """
         Base export class. Overloading will likely be necessary in many cases.
         """
@@ -141,7 +171,8 @@ class xrwrap():
             outname = outname + 'finalised'
 
         self.ds.close() # Force close
-        self.ds.to_dataframe().to_csv('{folder}//{file_}.csv'.format(folder=self.folder, file_=outname))
+        if csv:
+            self.ds.to_dataframe().to_csv('{folder}//{file_}.csv'.format(folder=self.folder, file_=outname))
 
         nc_file = '{folder}//{file_}.nc'.format(folder=self.folder, file_=outname)
         self.ds.to_netcdf(path=nc_file)
@@ -269,57 +300,180 @@ class xrwrap():
 
         return(out)
 
-    def update_qc_flag(self, flag_name, index_name, start, end, flag_value, comment=None, verbose=False):
-            """
-            This is a base function to update a QAQC flag. Inputs:
-                - flag_name: The name of the netcdf variable corrsponding to the QC flag being edited. Can be:
-                                - a single flag name
-                                - a list of flag names
-                                - '*'
-                            if '*' is used all QC flags will be updated 
+    def update_qc_flag_dict(self, flag_name, index_dict, flag_value, comment=None, delete_raw=False, verbose=False):
+        """
+        This is a base function to update a QAQC flag. Inputs:
+            - flag_name: The name of the netcdf variable corrsponding to the QC flag being edited. Can be:
+                            - a single flag name
+                            - a list of flag names
+                            - '*'
+                        if '*' is used all QC flags will be updated 
 
-                - index_name: The name of the netcdf variable which is being used to as an index to 
-                                identify which points to in the QC flag variable are to be edited.
-                - start: The first point in the index to change the value of
-                - end: The last point in the index to change the value of
-                - flag_value: new value which the QC flag is to become wherever the index is between start and end 
-            """
-            
-            if isinstance(flag_name, str): 
-                if flag_name == '*': 
-                    flag_names = self.valid_qc_flags
-                else:
-                    flag_names = [flag_name]
-            else: # Assume list
-                flag_names = flag_name
+            - index_name: The name of the netcdf variable which is being used to as an index to 
+                            identify which points to in the QC flag variable are to be edited.
+            - start: The first point in the index to change the value of
+            - end: The last point in the index to change the value of
+            - flag_value: new value which the QC flag is to become wherever the index is between start and end 
+        """
+        
+        if delete_raw:
+            error
 
-            for flag_name in flag_names:
+        if isinstance(flag_name, str): 
+            if flag_name == '*': 
+                flag_names = self.valid_qc_flags
+            else:
+                flag_names = [flag_name]
+        else: # Assume list
+            flag_names = flag_name
 
-                if not index_name in self.ds[flag_name].coords:
-                    continue
+        for flag_name in flag_names:
 
-                logind1 = self.ds[index_name] >= start
-                logind2 = self.ds[index_name] <= end
-                logind = ~np.logical_and(logind1, logind2)
+            flag_dims = [dim for dim in self.ds[flag_name].dims]
+            index_check = [index_name in self.ds[flag_name].dims for index_name in index_dict.keys()]
+            if not np.all(index_check):
+                continue
 
-                # print(logind)
+            logind = np.ones_like(self.ds[flag_name].values.astype(bool))
+            for index_name in index_dict.keys():
 
-                self.ds[flag_name] = self.ds[flag_name].where(logind, flag_value)
+                index = expand_dims(self.ds[index_name], flag_dims)
+
+                start, end = index_dict[index_name]
+
+                logind1 = index >= start
+                logind = np.logical_and(logind, logind1)
+
+                logind2 = index <= end
+                logind = np.logical_and(logind, logind2)
+
+            # Note that the logical index is reversed here.
+            self.ds[flag_name] = self.ds[flag_name].where(~logind, flag_value)
                 
-                ind = np.where(logind)[0]
-                logind = self.ds[flag_name] > 0
+            ind = np.where(logind)[0]
+            logind = self.ds[flag_name] > 0
 
-                if not comment is None: # Log comment on the QAQC.
-                    string = 'Flagged {} values with code "{}" and user comment "{}"'.format(len(self.ds[index_name].values)-len(ind), flag_value, comment)
-                    self.add_comment('O2 Metocean', string, data_var=flag_name)
+            if not comment is None: # Log comment on the QAQC.
+                string = 'Flagged {} values with code "{}" and user comment "{}"'.format(len(self.ds[index_name].values)-len(ind), flag_value, comment)
 
-                if verbose:
+                self.add_comment('UWA', string, data_var=flag_name)
+
+            if verbose:
+                
+                print(ind)
+                print(len(ind))
+                
+                print('There are {} flagged data points.'.format(np.sum(logind.values)))
+                print('')        
+
+    def update_qc_flag(self, flag_name, index_name, start, end, flag_value, comment=None, delete_raw=False, verbose=False, allow_back_compat=False):
+        """
+        This is a base function to update a QAQC flag. Inputs:
+            - flag_name: The name of the netcdf variable corrsponding to the QC flag being edited. Can be:
+                            - a single flag name
+                            - a list of flag names
+                            - '*'
+                        if '*' is used all QC flags will be updated 
+
+            - index_name: The name of the netcdf variable which is being used to as an index to 
+                            identify which points to in the QC flag variable are to be edited.
+            - start: The first point in the index to change the value of
+            - end: The last point in the index to change the value of
+            - flag_value: new value which the QC flag is to become wherever the index is between start and end 
+        """
+        
+        if not allow_back_compat:
+            raise(Exception('The function update_qc_flag is no longer available. Use the function update_qc_flag_dict or try again with the allow_back_compat option. '))
+            
+        if delete_raw:
+            error
+
+        if isinstance(flag_name, str): 
+            if flag_name == '*': 
+                flag_names = self.valid_qc_flags
+            else:
+                flag_names = [flag_name]
+        else: # Assume list
+            flag_names = flag_name
+
+        for flag_name in flag_names:
+
+            if not index_name in self.ds[flag_name].coords:
+                continue
+
+            logind1 = self.ds[index_name] >= start
+            logind2 = self.ds[index_name] <= end
+            logind = np.logical_and(logind1, logind2)
+
+            # print(logind)
+
+            # Note that the logical index is reversed here.
+            self.ds[flag_name] = self.ds[flag_name].where(~logind, flag_value)
+                
+            ind = np.where(logind)[0]
+            logind = self.ds[flag_name] > 0
+
+            if not comment is None: # Log comment on the QAQC.
+                string = 'Flagged {} values with code "{}" and user comment "{}"'.format(len(self.ds[index_name].values)-len(ind), flag_value, comment)
+
+                self.add_comment('UWA', string, data_var=flag_name)
+
+            if verbose:
+                
+                print(ind)
+                print(len(ind))
+                
+                print('There are {} flagged data points.'.format(np.sum(logind.values)))
+                print('')        
+
+    def update_qc_flag_logical(self, flag_name, index_name, logical_index, flag_value, comment=None, delete_raw=False, verbose=False):
+        """
+        This is a base function to update a QAQC flag. Inputs:
+            - flag_name: The name of the netcdf variable corrsponding to the QC flag being edited. Can be:
+                            - a single flag name
+                            - a list of flag names
+                            - '*'
+                        if '*' is used all QC flags will be updated 
+
+            - index_name: The name of the netcdf variable which is being used to as an index to 
+                            identify which points to in the QC flag variable are to be edited.
+            - logical_index: Logical index for points to change the value of
+            - flag_value: new value which the QC flag is to become wherever the index is between start and end 
+        """
+
+        if delete_raw:
+            error
+
+        if isinstance(flag_name, str): 
+            if flag_name == '*': 
+                flag_names = self.valid_qc_flags
+            else:
+                flag_names = [flag_name]
+        else: # Assume list
+            flag_names = flag_name
+
+        for flag_name in flag_names:
+
+            if not index_name in self.ds[flag_name].coords:
+                continue
+
+            # Note that the logical index is reversed here.
+            self.ds[flag_name] = self.ds[flag_name].where(~logical_index, flag_value)
+
+            ind = np.where(logical_index)[0]
+            logind = self.ds[flag_name] > 0
+
+            if not comment is None: # Log comment on the QAQC.
+                string = 'Flagged {} values with code "{}" and user comment "{}"'.format(len(self.ds[index_name].values)-len(ind), flag_value, comment)
                     
-                    print(ind)
-                    print(len(ind))
-                    
-                    print('There are {} flagged data points.'.format(np.sum(logind.values)))
-                    print('')        
+                self.add_comment('UWA', string, data_var=flag_name)
+
+            if verbose:
+                print(ind)
+                print(len(ind))
+
+                print('There are {} flagged data points.'.format(np.sum(logind.values)))
+                print('')   
 
     def flip_qc_value(self, flag_name, value_out=-999, value_in=0, verbose=False):
         """
@@ -595,3 +749,28 @@ def split_by_timegap(X, timename='time', hours=1):
     Xs = [X.isel({timename: np.arange(i[j]+1, i[j+1])}) for j in np.arange(0, len(i)-1)]
     
     return Xs
+
+def expand_dims(array, full_dims):
+    """
+    Expands out an array to help with broadcasting.
+
+    Inputs: 
+        - array: Array you wish to expand
+        - full_dims: List containing names of dimensions of the array you wish to expand out to
+
+    Returns:
+        - vals: values of the array expanded into the dimensions within full_dims
+
+    """
+    
+    expand_list = []
+    for flag_dim in full_dims:
+        if flag_dim in array.coords:
+            expand_list.append(np.arange(0, len(array[flag_dim])))
+        else:
+            expand_list.append(None)
+
+    vals = array.values[expand_list]
+
+    return vals
+    
