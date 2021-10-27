@@ -699,7 +699,7 @@ def get_qaqc_var(ds, var_name):
 
 ### Generic XR stuff
 
-def select_calendar_month(X, year_month):
+def select_calendar_month(X, year_month, timename='time'):
     """
     Return a subset of the Dataset or DataArray limited to the specified year and month. Uses rather crude indexing methods. I know 
     there are much more sopistocated inbuilt functions but I'm not familiar with them.
@@ -722,7 +722,12 @@ def select_calendar_month(X, year_month):
     
     start, end = calendar_month(year, month)
     
-    X_cm = X.sel(time = slice(start, end))
+    # Gotta do better than this
+    if timename.lower() == 'time':
+        X_cm = X.sel(time = slice(start, end))
+    elif timename.lower() == 'time_wave':
+        X_cm = X.sel(time_wave = slice(start, end))
+    # Gotta do better than this
     
     return X_cm, [start, end]
 
