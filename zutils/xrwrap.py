@@ -39,6 +39,7 @@ default_attrs = {
     'nominal_latitude': '',
     'nominal_longitude': '',
     'nominal_site_depth': '',
+    'pressure_sensor_height_asb': '',
     'nominal_instrument_height_asb': '',
     'nominal_instrument_orientation': '',
     'timezone': '',} 
@@ -299,6 +300,48 @@ class xrwrap():
                 out.append(i)
 
         return(out)
+
+    def set_pressure_sensor_height(self, ps_hasb):
+
+        self.update_attribute('pressure_sensor_height_asb', ps_hasb)
+
+    def get_pressure_sensor_height(self):
+
+        pressure_sensor_height_asb = self._attrs['pressure_sensor_height_asb']
+
+        if type(pressure_sensor_height_asb) == str:
+            pressure_sensor_height_asb = np.nan
+            
+        return pressure_sensor_height_asb
+
+    @property
+    def pressure_sensor_height(self):
+
+        return self.get_pressure_sensor_height()
+
+    def advance_time_mins(self, advance_mins=None, dataset_name='ds', time_name='time', comment=""):
+        """
+        Function to shift clock and log the change. 
+
+        Inputs:
+            advance_mins is the number of minutes to advance the clock [i.e. move to a later time].
+            dataset_name is the name of the dataset this change will be applied to. Default is "ds".
+            time_name is the name of the time variable this change will be applied to. Default is "time".
+             
+        """
+
+        if advance_mins == 0 or advance_mins is None or np.isnan(advance_mins):
+            print('Not advancing time')
+            return
+            
+        string = 'Advanced the time variable "{}" by {} minutes with user comment "{}"'.format(time_name, advance_mins, comment)
+        self.add_comment('UWA', string, ds_name='ds', data_var=None)
+        
+        print(string)
+
+        dataset = getattr(self, dataset_name)
+        dataset = dataset.assign_coords({time_name: dataset[time_name] + np.timedelta64(advance_mins,'m')})
+        setattr(self, dataset_name, dataset)
 
     def update_qc_flag_dict(self, flag_name, index_dict, flag_value, comment=None, delete_raw=False, verbose=False):
         """
@@ -591,7 +634,7 @@ class xrwrap():
         attr = 'history'
         self.add_string(attr, author, string, data_var=data_var)
             
-    def add_comment(self, author, string, data_var=None):
+    def add_comment(self, author, string, ds_name='ds', data_var=None):
         """
         Add CF Compliant string to the comments attribute of a Dataset or DataArray.
 
@@ -599,9 +642,9 @@ class xrwrap():
         """
 
         attr = 'comment'
-        self.add_string(attr, author, string, data_var=data_var)
+        self.add_string(attr, author, string, ds_name=ds_name, data_var=data_var)
             
-    def add_string(self, attr, author, string, data_var=None):
+    def add_string(self, attr, author, string, ds_name='ds', data_var=None):
         """
         Add CF Compliant string to an attribute of a Dataset or DataArray.
 
@@ -609,9 +652,9 @@ class xrwrap():
         """
 
         if data_var is None:
-            obj = self.ds
+            obj = getattr(self, ds_name)
         else:
-            obj = self.ds[data_var]
+            obj = getattr(self, ds_name)[data_var]
 
         new_string = datetime.datetime.now().isoformat() + ': ' + '[{}]'.format(author) + ' ' + string
         

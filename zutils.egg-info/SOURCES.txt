@@ -10,6 +10,7 @@ zutils/qc_conventions.py
 zutils/qc_conventions_old.py
 zutils/stats.py
 zutils/time.py
+zutils/windrose.py
 zutils/xr.py
 zutils/xrwrap.py
 zutils.egg-info/PKG-INFO
