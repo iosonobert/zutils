@@ -61,6 +61,8 @@ class xrwrap():
     
     _attrs = default_attrs
 
+    default_user = 'UWA'
+
     @property
     def fullpath(self, i=0):
         
@@ -335,13 +337,44 @@ class xrwrap():
             return
             
         string = 'Advanced the time variable "{}" by {} minutes with user comment "{}"'.format(time_name, advance_mins, comment)
-        self.add_comment('UWA', string, ds_name='ds', data_var=None)
+        self.add_comment(self.default_user, string, ds_name='ds', data_var=None)
         
         print(string)
 
         dataset = getattr(self, dataset_name)
         dataset = dataset.assign_coords({time_name: dataset[time_name] + np.timedelta64(advance_mins,'m')})
         setattr(self, dataset_name, dataset)
+
+    def offset_variable(self, offset_in_var_units, variable_name, dataset_name='ds',  comment=""):
+        """
+        Modify raw data by adding a set offset. 
+
+        The offset is sepcified in whatever units the variable is specified in.  
+
+        """
+    
+        if offset_in_var_units == 0 or offset_in_var_units is None or np.isnan(offset_in_var_units):
+            print('Not offsetting variable')
+            return
+        
+        raise(Exception("Not implemented"))
+        
+    def overwrite_variable(self, new_val_in_var_units, variable_name, dataset_name='ds',  comment=""):
+        """
+        Modify variable by overwriting its value(s) with a constant or equal sized array.  
+        
+        The new value(s) is sepcified in whatever units the variable is specified in. 
+        """
+        
+        string = 'Setting the variable "{}" to {} [same units] with user comment "{}"'.format(variable_name, 
+                                                                                              new_val_in_var_units, comment)
+        self.add_comment(self.default_user, string, ds_name='ds', data_var=None)
+        
+        print(string)
+
+        dataset = getattr(self, dataset_name)
+        dataset[variable_name].values[:] = new_val_in_var_units
+        
 
     def update_qc_flag_dict(self, flag_name, index_dict, flag_value, comment=None, delete_raw=False, verbose=False):
         """
@@ -399,7 +432,7 @@ class xrwrap():
             if not comment is None: # Log comment on the QAQC.
                 string = 'Flagged {} values with code "{}" and user comment "{}"'.format(len(self.ds[index_name].values)-len(ind), flag_value, comment)
 
-                self.add_comment('UWA', string, data_var=flag_name)
+                self.add_comment(self.default_user, string, data_var=flag_name)
 
             if verbose:
                 
@@ -409,7 +442,7 @@ class xrwrap():
                 print('There are {} flagged data points.'.format(np.sum(logind.values)))
                 print('')        
 
-    def update_qc_flag(self, flag_name, index_name, start, end, flag_value, comment=None, delete_raw=False, verbose=False, allow_back_compat=False):
+    def update_qc_flag(self, flag_name, index_name, start, end, flag_value, comment=None, delete_raw=False, verbose=False, allow_back_compat=True):
         """
         This is a base function to update a QAQC flag. Inputs:
             - flag_name: The name of the netcdf variable corrsponding to the QC flag being edited. Can be:
@@ -428,46 +461,10 @@ class xrwrap():
         if not allow_back_compat:
             raise(Exception('The function update_qc_flag is no longer available. Use the function update_qc_flag_dict or try again with the allow_back_compat option. '))
             
-        if delete_raw:
-            error
+        index_dict = {}
+        index_dict[index_name] = [start, end]
 
-        if isinstance(flag_name, str): 
-            if flag_name == '*': 
-                flag_names = self.valid_qc_flags
-            else:
-                flag_names = [flag_name]
-        else: # Assume list
-            flag_names = flag_name
-
-        for flag_name in flag_names:
-
-            if not index_name in self.ds[flag_name].coords:
-                continue
-
-            logind1 = self.ds[index_name] >= start
-            logind2 = self.ds[index_name] <= end
-            logind = np.logical_and(logind1, logind2)
-
-            # print(logind)
-
-            # Note that the logical index is reversed here.
-            self.ds[flag_name] = self.ds[flag_name].where(~logind, flag_value)
-                
-            ind = np.where(logind)[0]
-            logind = self.ds[flag_name] > 0
-
-            if not comment is None: # Log comment on the QAQC.
-                string = 'Flagged {} values with code "{}" and user comment "{}"'.format(len(self.ds[index_name].values)-len(ind), flag_value, comment)
-
-                self.add_comment('UWA', string, data_var=flag_name)
-
-            if verbose:
-                
-                print(ind)
-                print(len(ind))
-                
-                print('There are {} flagged data points.'.format(np.sum(logind.values)))
-                print('')        
+        self.update_qc_flag_dict(flag_name, index_dict, flag_value, comment=comment, delete_raw=delete_raw, verbose=verbose)
 
     def update_qc_flag_logical(self, flag_name, index_name, logical_index, flag_value, comment=None, delete_raw=False, verbose=False):
         """
@@ -506,10 +503,14 @@ class xrwrap():
             ind = np.where(logical_index)[0]
             logind = self.ds[flag_name] > 0
 
+            if verbose:
+                print()
+
             if not comment is None: # Log comment on the QAQC.
-                string = 'Flagged {} values with code "{}" and user comment "{}"'.format(len(self.ds[index_name].values)-len(ind), flag_value, comment)
+                # string = 'Flagged {} values with code "{}" and user comment "{}"'.format(len(self.ds[index_name].values)-len(ind), flag_value, comment)
+                string = 'Flagged {} values with code "{}" and user comment "{}"'.format(len(ind), flag_value, comment)
                     
-                self.add_comment('UWA', string, data_var=flag_name)
+                self.add_comment(self.default_user, string, data_var=flag_name)
 
             if verbose:
                 print(ind)
@@ -821,4 +822,20 @@ def expand_dims(array, full_dims):
     vals = array.values[expand_list]
 
     return vals
+
+def get_dim_index(array, dim_name):
+    """
+    Find which axis of a DataArray corresponds to a certain dimension name.
+    """
+        
+    coord_names =[x for x in array.coords ]
+    dim_index =[i for i in np.arange(0, len(coord_names)) if coord_names[i]==dim_name]    
     
+    if len(dim_index) == 1:
+        dim_index=dim_index[0]
+    else:
+        dim_index = None
+        
+    return dim_index
+
+
