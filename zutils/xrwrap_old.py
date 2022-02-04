@@ -14,10 +14,9 @@ from matplotlib.dates import num2date, date2num
 import matplotlib
 import datetime
 import os 
-import pdb 
+import pdb
 
 from zutils import qc_conventions
-from zutils import file as zfile
 
 default_attrs = {
     'title': '', 
@@ -29,21 +28,13 @@ default_attrs = {
     'references': '', 
     'comment': '', 
     'Conventions': 'CF-1.7', 
-    'trip': '', 
+    'trip_recovered': '', 
     'trip_deployed': '', 
     'site': '', 
     'site_station': '', 
     'instrument_make': '',  
     'instrument_model': '',
     'instrument_serial_number': '',
-    'raw_file_name': '',
-    'raw_file_directory': '',
-    'raw_file_attributes': '',                  # This is a string which holds the attributes of any raw file taken in by the. 
-    'last_export_file_name': '',                # When a netcdf is loaded, this should be cleared
-    'last_export_directory': '',                # When a netcdf is loaded, this should be cleared
-    'last_load_file_name': '',                  # When a netcdf is loaded, this should be overwritten with the load_name
-    'last_load_directory': '',                  # When a netcdf is loaded, this should be overwritten with the load_name
-    'outfile_append': '', 
     'disclaimer': '',
     'nominal_latitude': '',
     'nominal_longitude': '',
@@ -51,59 +42,12 @@ default_attrs = {
     'pressure_sensor_height_asb': '',
     'nominal_instrument_height_asb': '',
     'nominal_instrument_orientation': '',
-    'timezone': '',
-    'is_profile_data': 0} 
-
-def parse_infile(infile):
-    """
-    Take a string ( folder/file ), or 2 element list  ( [folder, file] ), and return the folder and file.
-    """
-
-    if type(infile)==str:
-        print('Im a string')
-        folder, file = os.path.split(infile)
-    elif type(infile) in [list, tuple]:
-        if not len(infile) == 2:
-            raise(Exception('The infile must be a string or a length 2 sequence'))
-        else:
-            folder, file = infile
-    else:
-        raise(Exception('The infile must be a string or a length 2 sequence'))
-        
-    return folder, file
-    
-def _from_netcdf(infile, classhandler):
-    """
-    Pass straight to the main xrwrap load method.
-
-    Inputs:
-        - infile
-        - classhandler - the xrwrap class to open the file
-    """
-   
-    folder, file = parse_infile(infile)
-
-    ds = xr.open_dataset(os.path.join(folder, file))
-
-    ds.attrs['last_load_file_name']      = file
-    ds.attrs['last_load_directory']      = folder
-
-    print(ds)
-    
-    rr = classhandler(ds)
-
-    return rr, ds
+    'timezone': '',} 
 
 class xrwrap():
     
-    ######
-    # SHOULD MINIMISE THE NUMBER OF PROPERTIES HERE, BECAUSE THESE DON'T EXPORT TO NETCDF OR LOAD FROM NETCDF 
-    ######
-    # folder = ''
-    # file_ = ''
-
-    # Certain irreversible operations will lead to modification of the output file name to prevent overwrite. 
-    auto_file_append = '' 
+    folder = ''
+    file_ = ''
     
     so = None
     eo = None
@@ -115,55 +59,62 @@ class xrwrap():
     _default_attrs = default_attrs
     _outname = None
     
-    # attrs = default_attrs
-
-    default_user = 'UWA'
-
-    @property
-    def _obj(self):
-        """
-        Little trick that may or may not work for xarray accessors.
-        """
-        return self.ds
+    _attrs = default_attrs
 
     @property
     def fullpath(self, i=0):
         
-        raise(Exception('Don''t use this fullpath property anymore. Switching to a more detailed system involving dataset attributes. '))
-
         if type(self.file_) == list:
             return '{folder}/{file_}'.format(folder=self.folder, file_=self.file_[i])
         else:
             return '{folder}/{file_}'.format(folder=self.folder, file_=self.file_)
+    
+    def parse_infile(self, infile):
+        """
+        This will set the file_ and folder properties based on an infile which can be either a
+        """
 
-    @property
-    def attrs(self):
-        return self.ds.attrs
+        if type(infile)==str:
+            print('Im a string')
+            folder, file = os.path.split(infile)
+        elif type(infile) in [list, tuple]:
+            if not len(infile) == 2:
+                raise(Exception('The infile must be a string or a length 2 sequence'))
+            else:
+                folder, file = infile
+        else:
+            raise(Exception('The infile must be a string or a length 2 sequence'))
+            
+        self.folder = folder
+        self.file_ = file
+        
+        
+    # def get_outname(self, keep_name='False', fileappend=''):
+
+    #     if not keep_name:
+
+    #         if len(self.file_) == 0:
+    #             outname = self.file_[0]
+    #         else:
+    #             outname = self.file_[0] + ' PlusOther'
+    #     else:
+    #         outname = '{}_{}_{}{}'.format(self._attrs['project'], self._attrs['trip_recovered'], self._attrs['site'], fileappend)
+
+    #     return outname
 
     def generate_outname(self, keep_name='False', fileappend=''):
         """
         Function to autogenerate a file name. Should not do this continuously.
         """
-        use_profiler_covention = False
-        if self.is_profile_data or use_profiler_covention:
-            convention = ['project',
-                            'trip',
-                            'site_station',
-                            'instrument_model',
-                            'instrument_serial_number',
-                            'raw_file_name',
-                            'outfile_append']
+        if not keep_name:
+
+            if len(self.file_) == 0:
+                outname = self.file_[0]
+            else:
+                outname = self.file_[0] + ' PlusOther'
         else:
+            outname = '{}_{}_{}{}'.format(self._attrs['project'], self._attrs['trip_recovered'], self._attrs['site'], fileappend)
 
-            convention = ['project',
-                            'trip',
-                            'site_station',
-                            'nominal_instrument_height_asb',
-                            'instrument_model',
-                            'instrument_serial_number',
-                            'outfile_append']
-
-        outname = naming_conv(self.attrs, convention=convention)
         return outname
 
     # @property
@@ -176,27 +127,21 @@ class xrwrap():
 
         return self._outname
 
-    def load(self, infile):
+    def load(self, folder, file_):
         """
         Initialise from netcdf rather than from a raw input file. 
         """
 
-        raise(Exception("Don't load like this anymore. Load from outside the actual object."))
+        self.folder = folder
+        self.file_ = file_
 
-        folder, file = parse_infile(infile)
-
-        nc_file = os.path.join(folder, file)
+        nc_file = '{folder}//{file_}'.format(folder=self.folder, file_=file_)
         
         ds = xr.open_dataset(nc_file)
 
-        ds.attrs['last_load_file_name']      = file
-        ds.attrs['last_load_directory']      = folder
-
-        self.store_raw_file_attributes(ds)
         self.ds = ds
-
-        # self.attrs = ds.attrs
-        # self.ds.attrs = {}
+        self._attrs = ds.attrs
+        self.ds.attrs = {}
 
         print('Loaded from NC. Class attributes taken from NC. NC attrs cleared.')
 
@@ -209,111 +154,31 @@ class xrwrap():
         """
 
         self.ds = ds
-        if False: # Still not sure the best point to do this.
-            self.store_raw_file_attributes(ds)
+        self._attrs = ds.attrs
+        self.ds.attrs = {}
 
         print('Wrapped an existing xarray dataset. Class attributes taken from the dataset. Dataset attrs cleared.')
+
+    def export(self, final=False, csv=True):
+        """
+        Base export class. Overloading will likely be necessary in many cases.
+        """
+        outname = self.generate_outname()
         
-    def export(self, naming_method=None, export_directory=None, final=False):
-        """
-        Base export class. Overloading should really be avoided.
+        self.ds.attrs = self._attrs
 
-        Inputs:
-            - naming_method: specifies how the output name is to be generated
-                * 'raw_file'   = use the name and directory of the raw file, but with extension *.nc
-                * 'last_load'  = use the name and directory of the last netcdf loaded
-                * 'convention' = use the inbuilt naming convention for the filename. Directory will be last load if that is not blank, else it will be the raw_dir.
-                * None         = use 'last_load' if it exists, else use 'raw_file'
-            - export_directory: specify new directory if you don't want the program to choose
-        """
-
-        outdir, outname = self.get_export_location(naming_method=naming_method, export_directory=export_directory)
-
-        self.attrs['last_export_directory'] = outdir
-        self.attrs['last_export_file_name'] = outname
-
-        ## 
         if final:
             self.ds.attrs['Disclaimer'] = self.disclaimer
-            # outname = outname + 'finalised'
+            outname = outname + 'finalised'
 
         self.ds.close() # Force close
+        if csv:
+            self.ds.to_dataframe().to_csv('{folder}//{file_}.csv'.format(folder=self.folder, file_=outname))
 
-        nc_file = '{folder}//{file}'.format(folder=outdir, file=outname)
-
-        print('Exporting {}'.format(nc_file))
-        
+        nc_file = '{folder}//{file_}.nc'.format(folder=self.folder, file_=outname)
         self.ds.to_netcdf(path=nc_file)
 
         return self.ds # It may be useful in many cases to return somethng here. Just return self.sd for consistency with subclasses.  
-
-    @property
-    def best_export_dir(self):
-        """
-        Directory will be last load if that is not blank, else it will be the raw_dir.
-        """
-
-        outdir  = self.attrs['last_load_directory']
-        if outdir == '':
-            print('Best export dir is the raw_file_directory.')
-            outdir  = self.attrs['raw_file_directory']
-        else:
-            print('Best export dir is the last_load_directory.')
-
-        
-        return outdir
-
-    def get_export_location(self, naming_method=None, export_directory=None):
-        """
-        Base export class. Overloading should really be avoided.
-
-        Inputs:
-            - naming_method: specifies how the output name is to be generated
-                * 'raw_file'   = use the name and directory of the raw file, but with extension *.nc
-                * 'last_load'  = use the name and directory of the last netcdf loaded
-                * 'convention' = use the inbuilt naming convention for the filename. Directory will be last load if that is not blank, else it will be the raw_dir.
-                * None         = use 'last_load' if it exists, else use 'raw_file'
-            - export_directory: specify new directory if you don't want the program to choose
-        """
-
-        if naming_method is None:
-            if not len(self.attrs['last_load_directory']) == 0:
-                naming_method = 'last_load'
-            else:
-                naming_method = 'raw_file'
-
-        if naming_method.lower() == 'convention':
-            print('Generating filename from naming convention.')
-            outname = self.generate_outname()
-            outname = zfile.drop_extension(outname) + '.nc'
-            outdir  = self.best_export_dir
-
-        elif naming_method.lower() == 'last_load':
-            outdir  = self.attrs['last_load_directory']
-            outname = self.attrs['last_load_file_name']
-            print('Will save file using last load file name and directory.')
-
-        elif naming_method.lower() == 'raw_file':
-            outdir  = self.attrs['raw_file_directory']
-            outname = self.attrs['raw_file_name']
-            # Replace extension
-            outname = zfile.drop_extension(outname) + '.nc'
-            print('Will save file using raw file name and directory.')
-
-        ## Use new directory if specified
-        if not export_directory is None:
-            outdir = export_directory
-            print('Will to user input directory.')
-
-        return outdir, outname
-
-    @property
-    def fullpath_last_export(self):
-        """
-        Full path that you last exported to.
-        """
-
-        return os.path.join(self.attrs['last_export_directory'], self.attrs['last_export_file_name'])
 
     def time_trim(self, first_good, last_good):
 
@@ -337,14 +202,6 @@ class xrwrap():
         self.ds = self.ds.sel(time=slice(self.first_good, self.last_good))
 
         print('Trimmed Time')
-
-    @property  
-    def is_profile_data(self):
-        
-        if 'is_profile_data' in self.attrs:
-            return self.attrs['is_profile_data']
-        else:
-            return False
 
     @property  
     def qc_conv(self):
@@ -375,6 +232,7 @@ class xrwrap():
         Inputs:
                 - var_name: The name of the data variable which will have a QC flag associated. Cannot QC dimensions [coords].
                 - flag_name: The name of QC flag to be associated/added. The prefix 'qc_' will be added automatically
+        
         """
 
         # Add the qc_ prefix
@@ -477,44 +335,13 @@ class xrwrap():
             return
             
         string = 'Advanced the time variable "{}" by {} minutes with user comment "{}"'.format(time_name, advance_mins, comment)
-        self.add_comment(self.default_user, string, ds_name='ds', data_var=None)
+        self.add_comment('UWA', string, ds_name='ds', data_var=None)
         
         print(string)
 
         dataset = getattr(self, dataset_name)
         dataset = dataset.assign_coords({time_name: dataset[time_name] + np.timedelta64(advance_mins,'m')})
         setattr(self, dataset_name, dataset)
-
-    def offset_variable(self, offset_in_var_units, variable_name, dataset_name='ds',  comment=""):
-        """
-        Modify raw data by adding a set offset. 
-
-        The offset is sepcified in whatever units the variable is specified in.  
-
-        """
-    
-        if offset_in_var_units == 0 or offset_in_var_units is None or np.isnan(offset_in_var_units):
-            print('Not offsetting variable')
-            return
-        
-        raise(Exception("Not implemented"))
-        
-    def overwrite_variable(self, new_val_in_var_units, variable_name, dataset_name='ds',  comment=""):
-        """
-        Modify variable by overwriting its value(s) with a constant or equal sized array.  
-        
-        The new value(s) is sepcified in whatever units the variable is specified in. 
-        """
-        
-        string = 'Setting the variable "{}" to {} [same units] with user comment "{}"'.format(variable_name, 
-                                                                                              new_val_in_var_units, comment)
-        self.add_comment(self.default_user, string, ds_name='ds', data_var=None)
-        
-        print(string)
-
-        dataset = getattr(self, dataset_name)
-        dataset[variable_name].values[:] = new_val_in_var_units
-        
 
     def update_qc_flag_dict(self, flag_name, index_dict, flag_value, comment=None, delete_raw=False, verbose=False):
         """
@@ -572,7 +399,7 @@ class xrwrap():
             if not comment is None: # Log comment on the QAQC.
                 string = 'Flagged {} values with code "{}" and user comment "{}"'.format(len(self.ds[index_name].values)-len(ind), flag_value, comment)
 
-                self.add_comment(self.default_user, string, data_var=flag_name)
+                self.add_comment('UWA', string, data_var=flag_name)
 
             if verbose:
                 
@@ -582,7 +409,7 @@ class xrwrap():
                 print('There are {} flagged data points.'.format(np.sum(logind.values)))
                 print('')        
 
-    def update_qc_flag(self, flag_name, index_name, start, end, flag_value, comment=None, delete_raw=False, verbose=False, allow_back_compat=True):
+    def update_qc_flag(self, flag_name, index_name, start, end, flag_value, comment=None, delete_raw=False, verbose=False, allow_back_compat=False):
         """
         This is a base function to update a QAQC flag. Inputs:
             - flag_name: The name of the netcdf variable corrsponding to the QC flag being edited. Can be:
@@ -601,10 +428,46 @@ class xrwrap():
         if not allow_back_compat:
             raise(Exception('The function update_qc_flag is no longer available. Use the function update_qc_flag_dict or try again with the allow_back_compat option. '))
             
-        index_dict = {}
-        index_dict[index_name] = [start, end]
+        if delete_raw:
+            error
 
-        self.update_qc_flag_dict(flag_name, index_dict, flag_value, comment=comment, delete_raw=delete_raw, verbose=verbose)
+        if isinstance(flag_name, str): 
+            if flag_name == '*': 
+                flag_names = self.valid_qc_flags
+            else:
+                flag_names = [flag_name]
+        else: # Assume list
+            flag_names = flag_name
+
+        for flag_name in flag_names:
+
+            if not index_name in self.ds[flag_name].coords:
+                continue
+
+            logind1 = self.ds[index_name] >= start
+            logind2 = self.ds[index_name] <= end
+            logind = np.logical_and(logind1, logind2)
+
+            # print(logind)
+
+            # Note that the logical index is reversed here.
+            self.ds[flag_name] = self.ds[flag_name].where(~logind, flag_value)
+                
+            ind = np.where(logind)[0]
+            logind = self.ds[flag_name] > 0
+
+            if not comment is None: # Log comment on the QAQC.
+                string = 'Flagged {} values with code "{}" and user comment "{}"'.format(len(self.ds[index_name].values)-len(ind), flag_value, comment)
+
+                self.add_comment('UWA', string, data_var=flag_name)
+
+            if verbose:
+                
+                print(ind)
+                print(len(ind))
+                
+                print('There are {} flagged data points.'.format(np.sum(logind.values)))
+                print('')        
 
     def update_qc_flag_logical(self, flag_name, index_name, logical_index, flag_value, comment=None, delete_raw=False, verbose=False):
         """
@@ -643,14 +506,10 @@ class xrwrap():
             ind = np.where(logical_index)[0]
             logind = self.ds[flag_name] > 0
 
-            if verbose:
-                print()
-
             if not comment is None: # Log comment on the QAQC.
-                # string = 'Flagged {} values with code "{}" and user comment "{}"'.format(len(self.ds[index_name].values)-len(ind), flag_value, comment)
-                string = 'Flagged {} values with code "{}" and user comment "{}"'.format(len(ind), flag_value, comment)
+                string = 'Flagged {} values with code "{}" and user comment "{}"'.format(len(self.ds[index_name].values)-len(ind), flag_value, comment)
                     
-                self.add_comment(self.default_user, string, data_var=flag_name)
+                self.add_comment('UWA', string, data_var=flag_name)
 
             if verbose:
                 print(ind)
@@ -706,6 +565,29 @@ class xrwrap():
         
         return da 
 
+    # def get_qaqc_var_old(self, var_name, flag_name, axis=None):
+    #     """
+    #     Retrun a QAQC'd copy of the data array by var_name, with the corresponding flag_name
+
+    #     optional input axis allows the flag to be reduced in dimension by a logical any.
+
+    #     FUTURE UPDATE:
+    #         - Get the QAQC flag name from the attributes of the variable
+    #     """
+        
+    #     for i in np.arange(0, 5):
+    #         print('WARNING: THE FLAG NAME SHOULD BE IN THE ATTRIBUTES OF THE DATA ARRAY.')
+
+    #     da = self.ds[var_name].copy()
+    #     ind = self.ds[flag_name].values > 0
+
+    #     if not axis is None:
+    #         ind = np.any(ind, axis=axis)
+
+    #     da.values[ind] = np.nan
+        
+    #     return da 
+
     def has_dates(self):
 
         if type(self.so) == type(None):
@@ -722,16 +604,16 @@ class xrwrap():
 
         delim = ' | '
         s = ''
-        k = self.attrs.keys()
+        k = self._attrs.keys()
         
         if 'project' in k:
-            s = s + delim + self.attrs['project']
+            s = s + delim + self._attrs['project']
             
         if 'trip_recovered' in k:
-            s = s + delim + self.attrs['trip_recovered']
+            s = s + delim + self._attrs['trip_recovered']
             
         if 'site' in k:
-            s = s + delim + self.attrs['site']
+            s = s + delim + self._attrs['site']
             
         if not fileappend == '':
             s = s + delim + fileappend
@@ -742,7 +624,7 @@ class xrwrap():
 
         return s
 
-    def add_history(self, author, string, ds_name=None, data_var=None):
+    def add_history(self, author, string, data_var=None):
         """
         Add CF Compliant string to the history attribute of a Dataset or DataArray.
 
@@ -750,7 +632,7 @@ class xrwrap():
         """
 
         attr = 'history'
-        self.add_string(attr, author, string, ds_name=ds_name, data_var=data_var)
+        self.add_string(attr, author, string, data_var=data_var)
             
     def add_comment(self, author, string, ds_name='ds', data_var=None):
         """
@@ -768,7 +650,7 @@ class xrwrap():
 
         Use the data_var kwarg to specify a DataArray. Omit or set to None to work with the whole Dataset.
         """
-        
+
         if data_var is None:
             obj = getattr(self, ds_name)
         else:
@@ -785,19 +667,14 @@ class xrwrap():
             
         return new_string
 
-    def update_attribute(self, attribute_name, attribute_value, ds_name='ds', data_var=None, strict=True):
+    def update_attribute(self, attribute_name, attribute_value, strict=True):
         """
         This function updates the hidden attributes property of the class. The attribute must exist in the default attributes dictionary.
         """
 
-        if data_var is None:
-            obj = getattr(self, ds_name)
-        else:
-            obj = getattr(self, ds_name)[data_var]
-
         if (attribute_name in self._default_attrs) or (not strict):
             print('Setting attribute "{}" to "{}"'.format(attribute_name, attribute_value))
-            obj.attrs[attribute_name] = attribute_value
+            self._attrs[attribute_name] = attribute_value
         else:
             raise(Exception('{} is not a valid attribute.'.format(attribute_name)))
 
@@ -809,103 +686,25 @@ class xrwrap():
         for attribute_name in attribute_dict.keys():
             
             self.update_attribute(attribute_name, attribute_dict[attribute_name])
-    
-    @property
-    def rawattrs(self):
-        """
-        Return the raw file attribute string as a dict.
-        
-        This is sloppy, and will likely fail under many data types. 
-        """
-        
-        array = np.array
-        
-        self.attrs['raw_file_attributes'] = "{'_type': 'ADCP', 'name': 'unrecognized firmware version', 'sourceprog': 'instrument', 'prog_ver': 51.4, 'config': '01000001-11001010', 'beam_angle': 20, 'numbeams': 4, 'beam_freq_khz': 300, 'beam_pattern': 'convex', 'orientation': 'up', 'simflag': 'real', 'n_beam': 4, 'n_cells': 46, 'pings_per_ensemble': 60, 'cell_size_m': 2.0, 'blank_m': 1.76, 'prof_mode': 1, 'corr_threshold': 0, 'prof_codereps': 5, 'min_pgood': 0, 'evel_threshold': 2000, 'sec_between_ping_groups': 1.0, 'coord': '00000000', 'coord_sys': 'beam', 'use_pitchroll': 'no', 'use_3beam': 'no', 'bin_mapping': 'no', 'xducer_misalign_deg': 0.0, 'magnetic_var_deg': 0.0, 'sensors_src': '01111101', 'sensors_avail': '00111101', 'bin1_dist_m': 4.2, 'xmit_pulse': 2.38, 'water_ref_cells': array([1, 5]), 'fls_target_threshold': 255, 'xmit_lag_m': 0.49}"
-        
-        return eval(self.attrs['raw_file_attributes'])
-        
-    def store_raw_file_attributes(self, ds):
-        """
-        Function that will pull any valid attributes from the dataset into the wrapper, and will
-        push any remaining into the 'raw_file_attributes' attribute.
-        """
-        
-        print('STORING RAW FILE ATTRIBUTES')
-        input_attributes = ds.attrs.copy()
-        keys = input_attributes.keys()
 
-        invalid_attributes = {} # These can't be added to the dataset 
-        ds.attrs = self._default_attrs  
-        
-        for attribute in keys:
-            
-            if attribute in xrwrap._default_attrs:
-                self.update_attribute(attribute, input_attributes[attribute])
-            else:
-                invalid_attribute = input_attributes[attribute]
-                invalid_attributes[attribute] = invalid_attribute
-                print(attribute.upper())
-        pass
-
-        if not len(invalid_attributes) == 0:
-
-            if not ds.attrs['raw_file_attributes'] == '':
-                raise(Exception('This operation can be performed only once'))
-
-            # self.add_string('raw_file_attributes', self.default_user, str(invalid_attributes), ds_name='ds', data_var=None)
-            self.attrs['raw_file_attributes'] = str(invalid_attributes)
-
-    def enforce_these_attrs(self, enforced_attributes):
-        """
-        Enforces certain global attributes to have certain values. Error will be thrown if the attribute are not
-        blank and different to what is specified:
-
-        Inputs:
-            - enforced_attributes (dict): dictionary of with attribute names as keys, and the enforced value as value.  
-        """
-
-        # CF Compliance
-        
-        print(self.attrs)
-        for attr in enforced_attributes.keys():
-            if self.attrs[attr] == '':
-                self.update_attribute(attr, enforced_attributes[attr])
-            else:
-                assert(self.attrs[attr]==enforced_attributes[attr])  
-
-    def check_attrs(self):
-        """
-        Check that all attributes in the dataset are in the default attributes, and vice versa.
-        
-        TO DO:
-            - There should probably be a list of attributes that need not be blank or a warning given. 
-        """
-        
-        for key in self.ds.attrs.keys():
-            assert(key in self._default_attrs)
-        for key in self._default_attrs:
-            assert(key in self.ds.attrs.keys())
-    
     def parse_attributes(self, ds_to_check=None):
         """
         Generic function to check consistency of attributes between the object itself and the properties of the class.
         """
-
-        raise(Exception('We no longer store attributes this way - this function should not be used'))
 
         if ds_to_check is None:
             ds_to_check = self.ds
 
         print("Parsing attributes.")
         for i in ds_to_check.attrs.keys():
-            if i in self.attrs.keys():
+            if i in self._attrs.keys():
                 print("{} is both a property of the object and an attribute of the dataset".format(i))
-                if ds_to_check.attrs[i] == self.attrs[i]:
+                if ds_to_check.attrs[i] == self._attrs[i]:
                     print("     ... and they are equal")
                 else:
                     print("     ... and they NOT are equal!!!")
 
-        ds_to_check.attrs = self.attrs
+        ds_to_check.attrs = self._attrs
 
     @property
     def disclaimer(self):
@@ -1022,49 +821,4 @@ def expand_dims(array, full_dims):
     vals = array.values[expand_list]
 
     return vals
-
-def get_dim_index(array, dim_name):
-    """
-    Find which axis of a DataArray corresponds to a certain dimension name.
-    """
-        
-    coord_names =[x for x in array.coords ]
-    dim_index =[i for i in np.arange(0, len(coord_names)) if coord_names[i]==dim_name]    
     
-    if len(dim_index) == 1:
-        dim_index=dim_index[0]
-    else:
-        dim_index = None
-        
-    return dim_index
-
-def naming_conv(attrs, convention=None):
-    """
-    Create a 'conventional name' from a list of attributes defining the naming convention.      
-    """
-    
-    if convention is None:
-        convention = ['project',
-                    'trip',
-                    'site_station',
-                    'instrument_model',
-                    'instrument_serial_number']
-    
-    name = ''
-    for attribute in convention:
-        val = attrs[attribute]
-        if type(attrs[attribute]) == str:
-            pass
-        elif np.isnan(val):
-            val=''
-        else:
-            val = str(int(attrs[attribute]*100))
-            
-        if '.' in val:
-            val = zfile.drop_extension(val)
-
-        name += '[{}]_'.format(val)
-    
-    name = name[0:-1]
-    
-    return name

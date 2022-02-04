@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
-    
+import os
+
 class axis_layer():
     """
     A class to assist in laying out axes for publication. 
@@ -393,3 +394,36 @@ def hide_yticks(ax):
     """
     for tick in ax.axes.get_yticklabels():
         tick.set_visible(False)
+
+def auscoast_fill(ax=None, sandpit_folder=None):
+    """
+    matplotlib fill australian coast. 
+
+    Need to figure out why some of the polygons don't render properly with fill but look fine in QGIS. 
+
+    Won't work if you don't have the sandpit, i.e. if pulled from github. 
+
+    """
+
+    import shapefile
+
+    if sandpit_folder is None:
+        sandpit_folder = os.path.join(os.path.split(__file__)[0], '../sandpit')
+    
+    # print(sandpit_folder)
+    # print(os.listdir(sandpit_folder))
+
+    if not os.path.exists(sandpit_folder):
+        raise(Exception('sandpit required to run this function'))
+
+    sf =  os.path.join(sandpit_folder, 'data/spatial/coastlines/ivica/Australia_NWS_polygons.shp')
+
+    if ax is None:
+        ax = plt.gca()
+
+    sf = shapefile.Reader(sf)
+
+    for shape in sf.shapeRecords():
+        x = [i[0] for i in shape.shape.points[:]]
+        y = [i[1] for i in shape.shape.points[:]]
+        ax.fill(x, y, '0.5')
