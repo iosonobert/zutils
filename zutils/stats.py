@@ -33,8 +33,8 @@ def jft(s, d, s_bins=5, d_bins=8, s_max=None, clean_nans = True, outfile=None):
     jft_table = 100*table[0]/n
     jft_list = jft_table.tolist()
     
-    top = ['{} - {}'.format(ds[i], ds[i+1]) for i in np.arange(0, len(ds)-1)]
-    left = ['{} - {}'.format(ss[i], ss[i+1]) for i in np.arange(0, len(ss)-1)]
+    top = ['{:.2f} - {:.2f}'.format(ds[i], ds[i+1]) for i in np.arange(0, len(ds)-1)]
+    left = ['{:.2f} - {:.2f}'.format(ss[i], ss[i+1]) for i in np.arange(0, len(ss)-1)]
 
     import csv
 
