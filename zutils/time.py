@@ -253,4 +253,59 @@ def np_datetime64_strftime(t, fmt):
     
 tests()
 
+def seconds_since(timein, basetime=datetime.datetime(1990,1,1)):
+    """
+    Converts a list or array of datetime object into an array of seconds since "basetime"
+    
+    From MRayson SFODA
+    """
+    
+    # Convert the time to seconds
+
+    # Workout the input type
+    isarray = False
+    isdatetime = False
+    isdatetime64 = False
+    if isinstance(timein, list) or isinstance(timein, np.ndarray):
+        isarray = True
+        if isinstance(timein[0], datetime.datetime):
+             isdatetime = True
+        elif isinstance(timein[0], np.datetime64):
+             isdatetime64 = True
+
+    # Could use the funcitons above but this seems fine for now. 
+    if isarray and isdatetime64:
+        time0 = np.datetime64(basetime).astype('<M8[us]')
+        tsec = ((timein.astype('<M8[us]') - time0)).astype(np.float64)*1e-6
+
+    elif isarray and isdatetime:
+        tsec = np.array([(t-basetime).total_seconds() for t in timein])
+
+    else: # Assume its a datetime.datetime object (this is not good..)
+        if isinstance(timein, datetime.datetime):
+            tsec = (timein-basetime).total_seconds()
+
+        else:
+            time0 = np.datetime64(basetime).astype('<M8[us]')
+            try:
+                #raise Exception, 'Time conversion error'
+                # This case shouldn't arise
+                tsec = ((timein.astype('<M8[us]') - time0)).astype(np.float64)*1e-6
+            except:
+                tsec = (timein-time0).total_seconds() # TimeDelta object
+
+    return tsec
+
+def time_interp1(time_out, time_in, data_in):
+    """
+    np.interp for timeseries data. 
+    
+    """
+    
+    # Convert times to an integer
+    time_out_sec = seconds_since(time_out)
+    time_in_sec = seconds_since(time_in)
+    
+    return np.interp(time_out_sec, time_in_sec, data_in)
+
 #%%

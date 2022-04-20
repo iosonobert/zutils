@@ -88,7 +88,7 @@ def _from_netcdf(infile, classhandler):
     ds.attrs['last_load_file_name']      = file
     ds.attrs['last_load_directory']      = folder
 
-    print(ds)
+    # print(ds)
     
     rr = classhandler(ds)
 
@@ -118,6 +118,8 @@ class xrwrap():
     # attrs = default_attrs
 
     default_user = 'UWA'
+
+    verbose = False
 
     @property
     def _obj(self):
@@ -801,6 +803,9 @@ class xrwrap():
         else:
             raise(Exception('{} is not a valid attribute.'.format(attribute_name)))
 
+        # Repeated calls are made here, shouldn't be too slow. 
+        self.pIMOS_assign_coords()
+
     def update_attributes_with_dict(self, attribute_dict):
         """
         This function updates the hidden attributes property of the class. The attribute must exist in the default attributes dictionary.
@@ -809,6 +814,39 @@ class xrwrap():
         for attribute_name in attribute_dict.keys():
             
             self.update_attribute(attribute_name, attribute_dict[attribute_name])
+
+    
+    def pIMOS_assign_coords(self):
+        """
+        Assign some additional coords to the file. These coords use deployment knowledge, so are not available at first creation of the ds.  
+
+        Note: at the moment this doesn't alter the coords on any data variables.
+
+        Function can be called repeatedly, it simply overwrites any coords.
+
+        """
+            
+        try:
+            lat_nom = self.ds.attrs['nominal_latitude']
+            self.ds = self.ds.assign_coords({'lat_nom': lat_nom,})
+        except:
+            # print('Failed assigning nominal_latitude')
+            pass
+            
+        try:
+            lat_nom = self.ds.attrs['nominal_longitude']
+            self.ds = self.ds.assign_coords({'lon_nom': lat_nom,})
+        except:
+            # print('Failed assigning nominal_longitude')
+            pass
+
+        try:
+            z_nom = self.ds.attrs['nominal_site_depth'] + self.ds.attrs['nominal_instrument_height_asb'] 
+            self.ds = self.ds.assign_coords({'z_nom': z_nom,})
+        except:
+            # print('Failed assigning z_nom')
+            pass
+            
     
     @property
     def rawattrs(self):
@@ -824,6 +862,13 @@ class xrwrap():
         
         return eval(self.attrs['raw_file_attributes'])
         
+    def get_raw_file_attributes(self):
+        """
+        Returns the attributes from rawfile as a dict.
+        """
+
+        return eval(self.attrs['raw_file_attributes'])
+
     def store_raw_file_attributes(self, ds):
         """
         Function that will pull any valid attributes from the dataset into the wrapper, and will
@@ -939,7 +984,7 @@ def get_qaqc_var(ds, var_name):
         values[ind] = np.nan
         da.values=values
     
-    return da 
+    return da             
 
 ### Generic XR stuff
 
@@ -1068,3 +1113,6 @@ def naming_conv(attrs, convention=None):
     name = name[0:-1]
     
     return name
+
+
+# %%

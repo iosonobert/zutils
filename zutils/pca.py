@@ -2,6 +2,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
+def rotate_2D(X, Y, theta):
+    """
+    Simple 2D rotation
+    """
+
+    X1 = X*np.cos(theta) - Y*np.sin(theta)
+    X2 = X*np.sin(theta) + Y*np.cos(theta)
+
+    return [X1, X2]
 
 def get_ellipse2D(var_maj, var_min, theta, n):
     """
@@ -15,7 +24,7 @@ def get_ellipse2D(var_maj, var_min, theta, n):
 
     return x, y
 
-def PCA_2D(X, Y, plotopt=False):
+def PCA_2D(X, Y, ellipse_stdevs=2, plotopt=False):
     """
     PCA on a plane (2D)
     
@@ -60,8 +69,12 @@ def PCA_2D(X, Y, plotopt=False):
     sqrt_lambda_1 = np.sqrt(lambda_1);
     sqrt_lambda_2 = np.sqrt(lambda_2);
 
-    x, y = get_ellipse2D(2*sqrt_lambda_1, 2*sqrt_lambda_2, theta_p, 100)
+    x, y = get_ellipse2D(ellipse_stdevs*sqrt_lambda_1, ellipse_stdevs*sqrt_lambda_2, theta_p, 100)
 #     x, y = get_ellipse2D(sqrt_lambda_1, sqrt_lambda_2, theta_p, 100)
+    
+    ellipse = [x, y]
+    sqrt_lambda = np.array([sqrt_lambda_1, sqrt_lambda_2])
+    X12 = rotate_2D(X, Y, -theta_p)
 
     if plotopt:
         
@@ -74,4 +87,29 @@ def PCA_2D(X, Y, plotopt=False):
         plt.plot(x, y, 'r-')
         plt.title('n points: {} | Ellipse axis: {:0.2f} deg'.format(n, theta_p*180/np.pi))
     
-    return theta_p, x, y
+    return theta_p, ellipse, sqrt_lambda, X12
+
+def PCA_2D_eig(X, Y, ellipse_stdevs=2, plotopt=False):
+    """
+    Alternate method for 2D PCA using np.eig.
+
+    This is more general and can be extended to higher dimensions than the algebraic method above.
+
+    """
+
+    sigma = np.cov(X, Y)
+
+    w, v = np.linalg.eig(sigma)
+    sqrt_lambda = np.sqrt(w)
+
+    v1 = v[0, :] # First eigenvector
+    theta_e = np.arctan2(v1[1], v1[0])
+    theta_e = - theta_e # Just a convention thing
+
+    x, y = get_ellipse2D(ellipse_stdevs*sqrt_lambda[0], ellipse_stdevs*sqrt_lambda[1], theta_e, 100)
+    
+    ellipse = [x, y]
+    X12 = rotate_2D(X, Y, -theta_e)
+
+    return theta_e, ellipse, sqrt_lambda, X12
+

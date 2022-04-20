@@ -395,7 +395,7 @@ def hide_yticks(ax):
     for tick in ax.axes.get_yticklabels():
         tick.set_visible(False)
 
-def auscoast_fill(ax=None, sandpit_folder=None):
+def auscoast_fill(ax=None, sandpit_folder=None, fill_kwargs={}):
     """
     matplotlib fill australian coast. 
 
@@ -426,4 +426,4 @@ def auscoast_fill(ax=None, sandpit_folder=None):
     for shape in sf.shapeRecords():
         x = [i[0] for i in shape.shape.points[:]]
         y = [i[1] for i in shape.shape.points[:]]
-        ax.fill(x, y, '0.5')
+        ax.fill(x, y, '0.5', **fill_kwargs)
